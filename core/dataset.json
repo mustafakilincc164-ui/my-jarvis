@@ -1,0 +1,134 @@
+{
+  "intents": [
+    {
+      "tag": "selamlama",
+      "patterns": [
+        "merhaba",
+        "selam",
+        "hey jarvis",
+        "orada mısın",
+        "jarvis selam",
+        "merhabalar"
+      ],
+      "responses": [
+        "Merhaba efendim, hazır ve sizi dinliyorum.",
+        "Buyurun efendim, emrinizdeyim.",
+        "Sistemler aktif, merhaba efendim.",
+        "Hey! Size nasıl yardımcı olabilirim efendim?"
+      ]
+    },
+    {
+      "tag": "kapatma",
+      "patterns": [
+        "kapat",
+        "çıkış yap",
+        "görüşürüz",
+        "sistemleri kapat",
+        "jarvis uyu",
+        "kapatabilirsin",
+        "iyi günler",
+        "kendine iyi bak"
+      ],
+      "responses": [
+        "Sistemleri kapatıyorum efendim. İyi günler.",
+        "Pekala efendim, görüşmek üzere. Kendinize iyi bakın.",
+        "Jarvis uyku moduna geçiyor. İyi günler dilerim."
+      ]
+    },
+    {
+      "tag": "saat_sorgusu",
+      "patterns": [
+        "saat kaç",
+        "saati söyler misin",
+        "bugün hangi gün",
+        "tarih nedir",
+        "bugünün tarihi ne",
+        "saat ve tarih bilgisi alabilir miyim"
+      ],
+      "responses": [
+        "Hemen kontrol ediyorum efendim.",
+        "Zamanı sorguluyorum efendim."
+      ]
+    },
+    {
+      "tag": "sistem_sorgusu",
+      "patterns": [
+        "sistem durumu nedir",
+        "bilgisayar nasıl",
+        "işlemci kullanımı ne alemde",
+        "ram doluluk oranı",
+        "batarya durumu",
+        "şarjım yüzde kaç",
+        "pc durumu"
+      ],
+      "responses": [
+        "Sistem kaynaklarını analiz ediyorum efendim.",
+        "Donanım durumunu kontrol ediyorum."
+      ]
+    },
+    {
+      "tag": "web_acma",
+      "patterns": [
+        "web sitesi aç",
+        "tarayıcıdan aç",
+        "google aç",
+        "youtubea gir",
+        "githubı aç",
+        "site aç"
+      ],
+      "responses": [
+        "İstediğiniz web sitesini tarayıcıda açıyorum efendim."
+      ]
+    },
+    {
+      "tag": "uygulama_acma",
+      "patterns": [
+        "uygulama çalıştır",
+        "not defterini aç",
+        "not defteri",
+        "hesap makinesini aç",
+        "hesap makinesi",
+        "tarayıcıyı aç",
+        "boyama yap",
+        "paint aç",
+        "kod editörünü aç",
+        "vscode aç"
+      ],
+      "responses": [
+        "İlgili uygulamayı başlatıyorum efendim."
+      ]
+    },
+    {
+      "tag": "esprili_cevap",
+      "patterns": [
+        "bana bir espri yap",
+        "komik bir şey söyle",
+        "sen kimsin",
+        "akıllı mısın",
+        "gerçek misin",
+        "seni kim yazdı"
+      ],
+      "responses": [
+        "Ben, sizin tarafınızdan yazılmış, yerel bir sinir ağıyla düşünen sadık asistanınız Jarvis'im.",
+        "Bir yapay zeka fıkra anlatırsa ne olur biliyor musunuz? Ben de bilmiyorum, kodlarımda espri modülü biraz zayıf kalmış efendim.",
+        "Sadece sıfırlar ve birlerden ibaret bir zekayım efendim, ama sizin için her zaman buradayım."
+      ]
+    },
+    {
+      "tag": "tesekkur",
+      "patterns": [
+        "teşekkürler",
+        "teşekkür ederim",
+        "sağol",
+        "harika iş çıkardın",
+        "süpersin jarvis",
+        "teşekkürler jarvis"
+      ],
+      "responses": [
+        "Rica ederim efendim, görevimi yapmak benim için bir zevk.",
+        "Her zaman buradayım efendim, yardımcı olabildiysem ne mutlu bana.",
+        "Rica ederim efendim. Başka bir isteğiniz var mıydı?"
+      ]
+    }
+  ]
+}
