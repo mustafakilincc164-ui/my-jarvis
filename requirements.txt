@@ -6,4 +6,4 @@ flask
 psutil
 torch
 gunicorn
-
+edge-tts
