@@ -2,14 +2,16 @@ import os
 import json
 import random
 import torch
+import google.generativeai as genai
 
+from config import settings
 from core.nlp import tokenize, stem, bag_of_words, turkish_lower
 from core.model import NeuralNet
 from core.tools import get_system_status, get_time_and_date, open_website, run_application
 
 class JarvisBrain:
     def __init__(self):
-        # Model dosyasının varlığını kontrol et
+        # 1. Yerel PyTorch modelini yükle
         self.model_path = "model.pth"
         if not os.path.exists(self.model_path):
             raise FileNotFoundError(
@@ -37,6 +39,22 @@ class JarvisBrain:
         with open("core/dataset.json", "r", encoding="utf-8") as f:
             self.intents = json.load(f)["intents"]
 
+        # 2. Bulut Gemini API'sini ilklendir
+        self.gemini_enabled = False
+        if settings.GEMINI_API_KEY and settings.GEMINI_API_KEY != "YOUR_GEMINI_API_KEY_HERE":
+            try:
+                genai.configure(api_key=settings.GEMINI_API_KEY)
+                self.gemini_model = genai.GenerativeModel(
+                    model_name="gemini-3.5-flash",
+                    system_instruction=settings.SYSTEM_INSTRUCTION
+                )
+                self.gemini_enabled = True
+                print("[Sistem] Gemini API Bulut Entegrasyonu başarıyla aktifleştirildi!")
+            except Exception as e:
+                print(f"[UYARI] Gemini API başlatılamadı: {e}")
+        else:
+            print("[UYARI] GEMINI_API_KEY tanımlanmamış veya varsayılan değerde. Bulut özellikleri pasif.")
+
     def get_response(self, user_input: str) -> str:
         """Kullanıcının girdisine karşılık Jarvis'in metin yanıtını döner (Terminal uyumlu)."""
         res = self.get_response_structured(user_input)
@@ -45,7 +63,7 @@ class JarvisBrain:
     def get_response_structured(self, user_input: str) -> dict:
         """Kullanıcı girdisini yerel sinir ağıyla sınıflandırır, yanıt ve aksiyon detaylarını sözlük olarak döner (Bulut/API uyumlu)."""
         try:
-            # 1. Girdiyi önişle
+            # 1. Girdiyi önişle ve yerel tahminde bulun
             tokens = tokenize(user_input)
             X = bag_of_words(tokens, self.all_words)
             X = torch.tensor(X, dtype=torch.float32).unsqueeze(0).to(self.device)
@@ -59,9 +77,9 @@ class JarvisBrain:
             probs = torch.softmax(outputs, dim=1)
             prob = probs[0][predicted.item()].item()
             
-            print(f"\n[Sistem] Tahmin Edilen Sınıf: '{tag}' (%{prob*100:.2f})")
+            print(f"\n[Sistem] Yerel Tahmin Edilen Sınıf: '{tag}' (%{prob*100:.2f})")
             
-            # 3. Güven eşiği kontrolü (%70)
+            # 3. Güven eşiği kontrolü (%70) - Yerel komutlar için
             if prob > 0.70:
                 # Eşleşen niyeti bul
                 intent_info = next((item for item in self.intents if item["tag"] == tag), None)
@@ -109,7 +127,22 @@ class JarvisBrain:
                 if intent_info and "responses" in intent_info:
                     return {"response": random.choice(intent_info["responses"]), "action": "none"}
             
-            # Eşik altı durumlarda fallback
+            # 4. Güven eşiği altındaysa veya bilinmeyen bir soruysa Gemini API'sine yönlendir (Hibrit Fallback)
+            if self.gemini_enabled:
+                print(f"[Sistem] Düşük güven skoru veya genel soru algılandı. Bulut Gemini API'ye gönderiliyor...")
+                try:
+                    response = self.gemini_model.generate_content(user_input)
+                    return {
+                        "response": response.text,
+                        "action": "none"
+                    }
+                except Exception as gemini_ex:
+                    return {
+                        "response": f"Üzgünüm efendim, buluttaki yapay zekama bağlanırken bir sorunla karşılaştım: {str(gemini_ex)}",
+                        "action": "none"
+                    }
+            
+            # Gemini de pasifse fallback yanıtı ver
             return {
                 "response": "Sizi tam olarak anlayamadım efendim. Bu komut yerel veritabanımda tanımlı değil.",
                 "action": "none"
