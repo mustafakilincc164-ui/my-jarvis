@@ -29,3 +29,6 @@ SYSTEM_INSTRUCTION = (
     "Cevap: Iron Man kesinlikle harika bir seçim efendim. Favori filminiz olarak aklıma yazdım.\n"
     "Profil_Güncelleme: Kullanıcının en sevdiği film Iron Man'dir."
 )
+
+# Güvenlik ve Kimlik Doğrulama Şifresi (Token)
+JARVIS_TOKEN = os.environ.get("JARVIS_TOKEN", "JarvisStarkDefaultToken123!")
