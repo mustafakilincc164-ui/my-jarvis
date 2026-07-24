@@ -7,7 +7,7 @@ import google.generativeai as genai
 from config import settings
 from core.nlp import tokenize, stem, bag_of_words, turkish_lower
 from core.model import NeuralNet
-from core.tools import get_system_status, get_time_and_date, open_website, run_application
+from core.tools import get_system_status, get_time_and_date, open_website, run_application, get_weather, get_news
 
 class JarvisBrain:
     def __init__(self):
@@ -58,6 +58,9 @@ class JarvisBrain:
 
         # 3. Sohbet Geçmişi (Chat History) Belleği
         self.chat_history = []
+        
+        # 4. Uzaktan PC Komut Kuyruğu
+        self.pc_commands = []
 
     def get_response(self, user_input: str) -> str:
         """Kullanıcının girdisine karşılık Jarvis'in metin yanıtını döner (Terminal uyumlu)."""
@@ -77,12 +80,121 @@ class JarvisBrain:
             self.chat_history.append({"role": "user", "parts": [user_input]})
             self.chat_history = self.chat_history[-10:]
 
-            # 1. Girdiyi önişle ve yerel tahminde bulun
+            lower_input = turkish_lower(user_input)
+
+            # ----------------------------------------------------
+            # 1. ÖNCELİKLİ ÖZEL KOMUTLAR VE ARAÇLAR (Hava Durumu, Haberler, PC Kontrol)
+            # ----------------------------------------------------
+            
+            # a) Hava Durumu Sorgusu
+            if "hava durumu" in lower_input or "hava nasıl" in lower_input:
+                city = "Bursa"
+                for word in user_input.split():
+                    clean_word = "".join(c for c in word if c.isalpha()).capitalize()
+                    if clean_word in ["Istanbul", "Ankara", "Izmir", "Bursa", "Antalya", "Adana", "Konya", "Mugla"]:
+                        city = clean_word
+                weather_info = get_weather(city)
+                response_text = f"Hemen güncel hava verilerine bağlanıyorum efendim. {weather_info}"
+                thought_text = f"Kullanıcı hava durumu sorguladı. wttr.in üzerinden {city} şehri sorgulanarak canlı veri entegre edildi."
+                self.chat_history.append({"role": "model", "parts": [response_text]})
+                return {
+                    "response": response_text,
+                    "thought": thought_text,
+                    "action": "none",
+                    "profile": profile
+                }
+
+            # b) Haber Sorgusu
+            elif "son dakika" in lower_input or "haberler" in lower_input or "haber oku" in lower_input:
+                news_info = get_news()
+                self.chat_history.append({"role": "model", "parts": [news_info]})
+                return {
+                    "response": news_info,
+                    "thought": "Kullanıcı haber sorguladı. NTV RSS Atom feed üzerinden güncel son dakika haber başlıkları çekildi.",
+                    "action": "none",
+                    "profile": profile
+                }
+
+            # c) PC Kontrol Komutları
+            elif "bilgisayarı kilitle" in lower_input or "pc kilitle" in lower_input:
+                self.pc_commands.append({"action": "lock"})
+                response_text = "Bilgisayarınız kilitleniyor efendim."
+                thought_text = "Bilgisayar kilitleme komutu alındı. PC komut kuyruğuna 'lock' aksiyonu eklendi."
+                self.chat_history.append({"role": "model", "parts": [response_text]})
+                return {"response": response_text, "thought": thought_text, "action": "none", "profile": profile}
+                
+            elif "bilgisayarı kapat" in lower_input or "pc kapat" in lower_input:
+                self.pc_commands.append({"action": "shutdown"})
+                response_text = "Anlaşıldı efendim, bilgisayarı kapatma protokolünü 10 saniye içinde başlatıyorum. İptal etmek için kapatmayı iptal et diyebilirsiniz."
+                thought_text = "PC kapatma komutu kuyruğa 'shutdown' olarak eklendi."
+                self.chat_history.append({"role": "model", "parts": [response_text]})
+                return {"response": response_text, "thought": thought_text, "action": "none", "profile": profile}
+                
+            elif "kapatmayı iptal et" in lower_input or "pc iptal et" in lower_input:
+                self.pc_commands.append({"action": "abort_shutdown"})
+                response_text = "Bilgisayar kapatma işlemi iptal edildi efendim. Sistemler çalışmaya devam ediyor."
+                thought_text = "PC kapatma iptali kuyruğa 'abort_shutdown' olarak eklendi."
+                self.chat_history.append({"role": "model", "parts": [response_text]})
+                return {"response": response_text, "thought": thought_text, "action": "none", "profile": profile}
+                
+            elif "bilgisayarı uyut" in lower_input or "pc uyut" in lower_input:
+                self.pc_commands.append({"action": "sleep"})
+                response_text = "Bilgisayarınız uyku moduna alınıyor efendim."
+                thought_text = "PC uyku komutu kuyruğa 'sleep' olarak eklendi."
+                self.chat_history.append({"role": "model", "parts": [response_text]})
+                return {"response": response_text, "thought": thought_text, "action": "none", "profile": profile}
+
+            # d) Medya ve Müzik Kontrol Komutları
+            elif "şarkıyı durdur" in lower_input or "müziği durdur" in lower_input or "şarkıyı oynat" in lower_input or "müziği oynat" in lower_input or "durdur" in lower_input or "duraklat" in lower_input:
+                self.pc_commands.append({"action": "media_play_pause"})
+                response_text = "Medya oynatıcısı tetiklendi efendim."
+                thought_text = "Medya oynat/durdur komutu kuyruğa 'media_play_pause' olarak eklendi."
+                self.chat_history.append({"role": "model", "parts": [response_text]})
+                return {"response": response_text, "thought": thought_text, "action": "none", "profile": profile}
+                
+            elif "sonraki şarkı" in lower_input or "şarkıyı geç" in lower_input or "sonraki" in lower_input:
+                self.pc_commands.append({"action": "media_next"})
+                response_text = "Sonraki parçaya geçiliyor efendim."
+                thought_text = "Medya sonraki parça komutu kuyruğa 'media_next' olarak eklendi."
+                self.chat_history.append({"role": "model", "parts": [response_text]})
+                return {"response": response_text, "thought": thought_text, "action": "none", "profile": profile}
+                
+            elif "önceki şarkı" in lower_input or "şarkıyı geri al" in lower_input or "önceki" in lower_input:
+                self.pc_commands.append({"action": "media_prev"})
+                response_text = "Önceki parçaya geri dönülüyor efendim."
+                thought_text = "Medya önceki parça komutu kuyruğa 'media_prev' olarak eklendi."
+                self.chat_history.append({"role": "model", "parts": [response_text]})
+                return {"response": response_text, "thought": thought_text, "action": "none", "profile": profile}
+                
+            elif "sesi yükselt" in lower_input or "sesi aç" in lower_input:
+                self.pc_commands.append({"action": "volume_up"})
+                response_text = "Bilgisayar sesi yükseltiliyor efendim."
+                thought_text = "PC ses artırma komutu kuyruğa 'volume_up' olarak eklendi."
+                self.chat_history.append({"role": "model", "parts": [response_text]})
+                return {"response": response_text, "thought": thought_text, "action": "none", "profile": profile}
+                
+            elif "sesi kıs" in lower_input:
+                self.pc_commands.append({"action": "volume_down"})
+                response_text = "Bilgisayar sesi kısılıyor efendim."
+                thought_text = "PC ses azaltma komutu kuyruğa 'volume_down' olarak eklendi."
+                self.chat_history.append({"role": "model", "parts": [response_text]})
+                return {"response": response_text, "thought": thought_text, "action": "none", "profile": profile}
+                
+            elif "sesi kapat" in lower_input or "sessize al" in lower_input:
+                self.pc_commands.append({"action": "volume_mute"})
+                response_text = "Sessize alma modu tetiklendi efendim."
+                thought_text = "PC sessize alma komutu kuyruğa 'volume_mute' olarak eklendi."
+                self.chat_history.append({"role": "model", "parts": [response_text]})
+                return {"response": response_text, "thought": thought_text, "action": "none", "profile": profile}
+
+            # ----------------------------------------------------
+            # 2. STANDART YEREL SİNİR AĞI SINIFLANDIRMASI (NLP + NeuralNet)
+            # ----------------------------------------------------
             tokens = tokenize(user_input)
             X = bag_of_words(tokens, self.all_words)
             X = torch.tensor(X, dtype=torch.float32).unsqueeze(0).to(self.device)
             
-            # 2. Tahmin yap
+            # Tahmin yap
             outputs = self.model(X)
             _, predicted = torch.max(outputs, dim=1)
             tag = self.tags[predicted.item()]
@@ -93,9 +205,8 @@ class JarvisBrain:
             
             print(f"\n[Sistem] Yerel Tahmin Edilen Sınıf: '{tag}' (%{prob*100:.2f})")
             
-            # 3. Güven eşiği kontrolü (%70) - Yerel komutlar için
+            # Güven eşiği kontrolü (%70) - Yerel komutlar için
             if prob > 0.70:
-                # Eşleşen niyeti bul
                 intent_info = next((item for item in self.intents if item["tag"] == tag), None)
                 
                 response_text = ""
@@ -103,7 +214,6 @@ class JarvisBrain:
                 action_type = "none"
                 extra_url = ""
                 
-                # Karşılık gelen aksiyonları çalıştır
                 if tag == "saat_sorgusu":
                     response_text = get_time_and_date()
                     thought_text = "Sistem saati ve Türkiye zaman dilimi (UTC+3) kontrol edildi. Güncel zaman bilgi formu hazırlandı."
@@ -204,7 +314,7 @@ class JarvisBrain:
                             cevap_text = parts[1].strip()
                         except Exception:
                             pass
-                            
+
                     return {
                         "response": cevap_text,
                         "thought": dusunce_text,
