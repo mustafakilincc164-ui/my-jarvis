@@ -22,12 +22,14 @@ except Exception as e:
     brain = None
 
 def detect_language(text: str) -> str:
-    # Türkçe'ye özgü karakterler ve sık kullanılan kelimeler
-    turkish_chars = set("ıışğğççoöuüİŞĞÇÖÜ")
+    # Sadece Türkçe'ye özgü karakterler (o ve u harfleri İngilizce'de de olduğu için hariç tutuldu)
+    turkish_chars = set("ışğçöüıŞĞÇÖÜ")
     turkish_words = {"ve", "bir", "bu", "ne", "da", "de", "için", "efendim", "saat", "sistem", "açılıyor", "merhaba", "tamam", "girdiniz"}
     text_lower = text.lower()
     
-    if any(char in turkish_chars for char in text) or any(word in text_lower.split() for word in turkish_words):
+    # Kelimeleri küme olarak karşılaştır (daha performanslı ve doğru)
+    words_in_text = set(text_lower.split())
+    if any(char in turkish_chars for char in text) or not words_in_text.isdisjoint(turkish_words):
         return "tr"
     return "en"
 
