@@ -124,6 +124,8 @@ def chat():
             generate_tts_sync(response_text, filename)
             # İstek atılan host URL'ye göre dinamik audio_url oluştur
             base_url = request.host_url.rstrip('/')
+            if "onrender.com" in base_url:
+                base_url = base_url.replace("http://", "https://")
             result["audio_url"] = f"{base_url}/static/voices/{filename}"
         except Exception as tts_err:
             print(f"[HATA] TTS üretilemedi: {tts_err}")
