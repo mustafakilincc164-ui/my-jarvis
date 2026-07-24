@@ -45,7 +45,7 @@ class JarvisBrain:
             try:
                 genai.configure(api_key=settings.GEMINI_API_KEY)
                 self.gemini_model = genai.GenerativeModel(
-                    model_name="gemini-3.5-flash",
+                    model_name="gemini-flash-latest",
                     system_instruction=settings.SYSTEM_INSTRUCTION
                 )
                 self.gemini_enabled = True
