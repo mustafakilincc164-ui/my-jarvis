@@ -133,6 +133,13 @@ def chat():
             
     return jsonify(result)
 
+@app.route("/api/clear", methods=["POST"])
+def clear():
+    if not brain:
+        return jsonify({"response": "Yapay zeka beyni yüklenemedi.", "status": "error"}), 500
+    brain.clear_history()
+    return jsonify({"response": "Hafızam temizlendi efendim.", "status": "success"})
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
