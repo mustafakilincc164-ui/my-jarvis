@@ -27,8 +27,16 @@ def detect_language(text: str) -> str:
     turkish_words = {"ve", "bir", "bu", "ne", "da", "de", "için", "efendim", "saat", "sistem", "açılıyor", "merhaba", "tamam", "girdiniz"}
     text_lower = text.lower()
     
-    # Kelimeleri küme olarak karşılaştır (daha performanslı ve doğru)
-    words_in_text = set(text_lower.split())
+    # Noktalama işaretlerini temizle (kelime eşleşmelerinin doğru çalışması için)
+    clean_text = ""
+    for char in text_lower:
+        if char.isalnum() or char.isspace():
+            clean_text += char
+        else:
+            clean_text += " "
+            
+    words_in_text = set(clean_text.split())
+    
     if any(char in turkish_chars for char in text) or not words_in_text.isdisjoint(turkish_words):
         return "tr"
     return "en"
