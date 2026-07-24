@@ -6,6 +6,7 @@ import asyncio
 import edge_tts
 from flask import Flask, request, jsonify
 from core.brain import JarvisBrain
+from config import settings
 
 app = Flask(__name__)
 
@@ -92,8 +93,20 @@ def home():
         "message": "Jarvis Yapay Zeka Bulut Sunucusu Aktif!"
     })
 
+def check_auth():
+    token = request.headers.get("X-Jarvis-Token")
+    if not token or token != settings.JARVIS_TOKEN:
+        return False
+    return True
+
 @app.route("/api/chat", methods=["POST"])
 def chat():
+    if not check_auth():
+        return jsonify({
+            "response": "Yetkisiz erişim algılandı. Lütfen geçerli bir güvenlik tokenı sağlayın.",
+            "action": "none"
+        }), 401
+        
     if not brain:
         return jsonify({
             "response": "Sistem hatası: Yapay zeka beyni yüklenemedi.",
@@ -136,6 +149,9 @@ def chat():
 
 @app.route("/api/pc/poll", methods=["GET"])
 def pc_poll():
+    if not check_auth():
+        return jsonify({"commands": [], "error": "Unauthorized"}), 401
+        
     if not brain:
         return jsonify({"commands": []}), 500
     # Sıradaki komutları çek ve kuyruğu temizle
@@ -145,6 +161,9 @@ def pc_poll():
 
 @app.route("/api/clear", methods=["POST"])
 def clear():
+    if not check_auth():
+        return jsonify({"response": "Yetkisiz erişim.", "status": "error"}), 401
+        
     if not brain:
         return jsonify({"response": "Yapay zeka beyni yüklenemedi.", "status": "error"}), 500
     brain.clear_history()
