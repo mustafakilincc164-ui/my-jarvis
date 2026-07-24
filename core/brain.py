@@ -44,6 +44,7 @@ class JarvisBrain:
         if settings.GEMINI_API_KEY and settings.GEMINI_API_KEY != "YOUR_GEMINI_API_KEY_HERE":
             try:
                 genai.configure(api_key=settings.GEMINI_API_KEY)
+                # Başlangıçta varsayılan model
                 self.gemini_model = genai.GenerativeModel(
                     model_name="gemini-flash-latest",
                     system_instruction=settings.SYSTEM_INSTRUCTION
@@ -63,9 +64,15 @@ class JarvisBrain:
         res = self.get_response_structured(user_input)
         return res["response"]
 
-    def get_response_structured(self, user_input: str) -> dict:
-        """Kullanıcı girdisini yerel sinir ağıyla sınıflandırır, yanıt, aksiyon ve düşünce detaylarını döner."""
+    def get_response_structured(self, user_input: str, profile: dict = None) -> dict:
+        """Kullanıcı girdisini yerel sinir ağıyla sınıflandırır, yanıt, aksiyon, düşünce ve profil detaylarını döner."""
         try:
+            # Profil kontrolü ve ilklendirme
+            if profile is None:
+                profile = {"facts": []}
+            if "facts" not in profile:
+                profile["facts"] = []
+
             # Kullanıcı mesajını geçmişe ekle ve son 10 mesajla sınırla (5 tur)
             self.chat_history.append({"role": "user", "parts": [user_input]})
             self.chat_history = self.chat_history[-10:]
@@ -144,13 +151,26 @@ class JarvisBrain:
                     "response": response_text,
                     "thought": thought_text,
                     "action": action_type,
-                    "url": extra_url
+                    "url": extra_url,
+                    "profile": profile
                 }
             
             # 4. Güven eşiği altındaysa veya bilinmeyen bir soruysa Gemini API'sine yönlendir (Hibrit Fallback)
             if self.gemini_enabled:
                 print(f"[Sistem] Düşük güven skoru veya genel soru algılandı. Sohbet geçmişiyle birlikte Gemini API'ye gönderiliyor...")
                 try:
+                    # Kullanıcı bilgileri varsa sistem talimatına dinamik olarak enjekte et (Her istekte)
+                    system_instruction = settings.SYSTEM_INSTRUCTION
+                    if profile["facts"]:
+                        facts_text = "\n\nKullanıcı Hakkında Bilinen Gerçekler (Bunları cevaplarında ve kararlarında dikkate al):\n" + "\n".join(f"- {f}" for f in profile["facts"])
+                        system_instruction += facts_text
+                        
+                    # Dinamik model ilklendirme
+                    self.gemini_model = genai.GenerativeModel(
+                        model_name="gemini-flash-latest",
+                        system_instruction=system_instruction
+                    )
+
                     # Gemini'ye tüm sohbet geçmişini (memory) gönderiyoruz
                     response = self.gemini_model.generate_content(self.chat_history)
                     raw_response = response.text
@@ -158,10 +178,25 @@ class JarvisBrain:
                     # Tarihçeye ham cevabı ekle
                     self.chat_history.append({"role": "model", "parts": [raw_response]})
                     
-                    # Düşünce ve Cevabı ayrıştır
+                    # Düşünce, Cevap ve Profil Güncellemesini ayrıştır
                     dusunce_text = "Karar verme süreci tamamlandı."
                     cevap_text = raw_response
                     
+                    # Profil güncelleme kontrolü
+                    if "Profil_Güncelleme:" in raw_response:
+                        try:
+                            parts = raw_response.split("Profil_Güncelleme:")
+                            new_fact = parts[1].strip()
+                            raw_response = parts[0].strip() # Profil güncelleme kısmını temizle
+                            
+                            # Yeni gerçeği profile ekle (eğer listede yoksa)
+                            if new_fact and new_fact not in profile["facts"]:
+                                profile["facts"].append(new_fact)
+                                print(f"[Sistem] Yeni bilgi öğrenildi ve profile eklendi: {new_fact}")
+                        except Exception as prof_err:
+                            print(f"[HATA] Profil güncellenirken hata: {prof_err}")
+                    
+                    # Düşünce ve Cevap ayırma
                     if "Düşünce:" in raw_response and "Cevap:" in raw_response:
                         try:
                             parts = raw_response.split("Cevap:")
@@ -173,7 +208,8 @@ class JarvisBrain:
                     return {
                         "response": cevap_text,
                         "thought": dusunce_text,
-                        "action": "none"
+                        "action": "none",
+                        "profile": profile
                     }
                 except Exception as gemini_ex:
                     err_msg = f"Üzgünüm efendim, buluttaki yapay zekama bağlanırken bir sorunla karşılaştım: {str(gemini_ex)}"
@@ -181,7 +217,8 @@ class JarvisBrain:
                     return {
                         "response": err_msg,
                         "thought": "Gemini API bağlantısı başarısız oldu. Hata yakalandı.",
-                        "action": "none"
+                        "action": "none",
+                        "profile": profile
                     }
             
             # Gemini de pasifse fallback yanıtı ver
@@ -190,14 +227,16 @@ class JarvisBrain:
             return {
                 "response": fallback_msg,
                 "thought": "Yerel model güven eşiği altında kaldı ve Gemini API devre dışı. Fallback mesajı verildi.",
-                "action": "none"
+                "action": "none",
+                "profile": profile
             }
             
         except Exception as e:
             return {
                 "response": f"Üzgünüm efendim, yerel düşünme modülümde bir hata oluştu: {str(e)}",
                 "thought": "Sistem hata durumuna geçti.",
-                "action": "none"
+                "action": "none",
+                "profile": profile
             }
             
     def clear_history(self):
