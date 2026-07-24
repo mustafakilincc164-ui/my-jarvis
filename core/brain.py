@@ -55,14 +55,21 @@ class JarvisBrain:
         else:
             print("[UYARI] GEMINI_API_KEY tanımlanmamış veya varsayılan değerde. Bulut özellikleri pasif.")
 
+        # 3. Sohbet Geçmişi (Chat History) Belleği
+        self.chat_history = []
+
     def get_response(self, user_input: str) -> str:
         """Kullanıcının girdisine karşılık Jarvis'in metin yanıtını döner (Terminal uyumlu)."""
         res = self.get_response_structured(user_input)
         return res["response"]
 
     def get_response_structured(self, user_input: str) -> dict:
-        """Kullanıcı girdisini yerel sinir ağıyla sınıflandırır, yanıt ve aksiyon detaylarını sözlük olarak döner (Bulut/API uyumlu)."""
+        """Kullanıcı girdisini yerel sinir ağıyla sınıflandırır, yanıt, aksiyon ve düşünce detaylarını döner."""
         try:
+            # Kullanıcı mesajını geçmişe ekle ve son 10 mesajla sınırla (5 tur)
+            self.chat_history.append({"role": "user", "parts": [user_input]})
+            self.chat_history = self.chat_history[-10:]
+
             # 1. Girdiyi önişle ve yerel tahminde bulun
             tokens = tokenize(user_input)
             X = bag_of_words(tokens, self.all_words)
@@ -84,17 +91,19 @@ class JarvisBrain:
                 # Eşleşen niyeti bul
                 intent_info = next((item for item in self.intents if item["tag"] == tag), None)
                 
+                response_text = ""
+                thought_text = ""
+                action_type = "none"
+                extra_url = ""
+                
                 # Karşılık gelen aksiyonları çalıştır
                 if tag == "saat_sorgusu":
-                    return {"response": get_time_and_date(), "action": "none"}
+                    response_text = get_time_and_date()
+                    thought_text = "Sistem saati ve Türkiye zaman dilimi (UTC+3) kontrol edildi. Güncel zaman bilgi formu hazırlandı."
                     
                 elif tag == "sistem_sorgusu":
-                    # Bulut ortamında sistem durumunu kontrol etmek yerel bilgisayarı yansıtmaz
-                    # Bu nedenle özel bir açıklama dönüyoruz
-                    return {
-                        "response": "Şu an bulut üzerinden bağlandığımız için bilgisayarınızın donanım durumuna erişemiyorum efendim. Ancak sistemlerim genel olarak aktif.",
-                        "action": "none"
-                    }
+                    response_text = "Şu an bulut üzerinden bağlandığımız için bilgisayarınızın donanım durumuna erişemiyorum efendim. Ancak sistemlerim genel olarak aktif."
+                    thought_text = "Yerel donanım sorgusu algılandı. Sunucu bulutta çalıştığı için donanım erişim kısıtlama bildirimi hazırlandı."
                     
                 elif tag == "web_acma":
                     lower_input = turkish_lower(user_input)
@@ -111,49 +120,87 @@ class JarvisBrain:
                         site_name = "Gmail"
                         site_url = "https://gmail.com"
                         
-                    return {
-                        "response": f"{site_name} adresi telefonunuzda açılıyor, efendim.",
-                        "action": "open_url",
-                        "url": site_url
-                    }
+                    response_text = f"{site_name} adresi telefonunuzda açılıyor, efendim."
+                    thought_text = f"Kullanıcı web sayfası açma komutu verdi. Hedef: {site_name}. Safari yönlendirme parametreleri 'open_url' olarak set edildi."
+                    action_type = "open_url"
+                    extra_url = site_url
                     
                 elif tag == "uygulama_acma":
-                    return {
-                        "response": "Bulut sunucu üzerinden yerel bilgisayarınızda uygulama çalıştıramam efendim.",
-                        "action": "none"
-                    }
+                    response_text = "Bulut sunucu üzerinden yerel bilgisayarınızda uygulama çalıştıramam efendim."
+                    thought_text = "Yerel masaüstü uygulaması açma isteği. Sunucu bulut kısıtlamaları ve güvenlik nedeniyle erişim engellendi."
                 
-                # Diğer etiketler için şablondan rastgele yanıt seç
-                if intent_info and "responses" in intent_info:
-                    return {"response": random.choice(intent_info["responses"]), "action": "none"}
+                else:
+                    # Diğer etiketler için şablondan rastgele yanıt seç
+                    if intent_info and "responses" in intent_info:
+                        response_text = random.choice(intent_info["responses"])
+                    else:
+                        response_text = "Hizmetinizdeyim efendim."
+                    thought_text = f"Yerel komut algılandı (Niyet: '{tag}'). Veritabanından en uygun yanıt kalıbı seçildi."
+                
+                # Yanıtı hafızaya ekle
+                self.chat_history.append({"role": "model", "parts": [response_text]})
+                
+                return {
+                    "response": response_text,
+                    "thought": thought_text,
+                    "action": action_type,
+                    "url": extra_url
+                }
             
             # 4. Güven eşiği altındaysa veya bilinmeyen bir soruysa Gemini API'sine yönlendir (Hibrit Fallback)
             if self.gemini_enabled:
-                print(f"[Sistem] Düşük güven skoru veya genel soru algılandı. Bulut Gemini API'ye gönderiliyor...")
+                print(f"[Sistem] Düşük güven skoru veya genel soru algılandı. Sohbet geçmişiyle birlikte Gemini API'ye gönderiliyor...")
                 try:
-                    response = self.gemini_model.generate_content(user_input)
+                    # Gemini'ye tüm sohbet geçmişini (memory) gönderiyoruz
+                    response = self.gemini_model.generate_content(self.chat_history)
+                    raw_response = response.text
+                    
+                    # Tarihçeye ham cevabı ekle
+                    self.chat_history.append({"role": "model", "parts": [raw_response]})
+                    
+                    # Düşünce ve Cevabı ayrıştır
+                    dusunce_text = "Karar verme süreci tamamlandı."
+                    cevap_text = raw_response
+                    
+                    if "Düşünce:" in raw_response and "Cevap:" in raw_response:
+                        try:
+                            parts = raw_response.split("Cevap:")
+                            dusunce_text = parts[0].replace("Düşünce:", "").strip()
+                            cevap_text = parts[1].strip()
+                        except Exception:
+                            pass
+                            
                     return {
-                        "response": response.text,
+                        "response": cevap_text,
+                        "thought": dusunce_text,
                         "action": "none"
                     }
                 except Exception as gemini_ex:
+                    err_msg = f"Üzgünüm efendim, buluttaki yapay zekama bağlanırken bir sorunla karşılaştım: {str(gemini_ex)}"
+                    self.chat_history.append({"role": "model", "parts": [err_msg]})
                     return {
-                        "response": f"Üzgünüm efendim, buluttaki yapay zekama bağlanırken bir sorunla karşılaştım: {str(gemini_ex)}",
+                        "response": err_msg,
+                        "thought": "Gemini API bağlantısı başarısız oldu. Hata yakalandı.",
                         "action": "none"
                     }
             
             # Gemini de pasifse fallback yanıtı ver
+            fallback_msg = "Sizi tam olarak anlayamadım efendim. Bu komut yerel veritabanımda tanımlı değil."
+            self.chat_history.append({"role": "model", "parts": [fallback_msg]})
             return {
-                "response": "Sizi tam olarak anlayamadım efendim. Bu komut yerel veritabanımda tanımlı değil.",
+                "response": fallback_msg,
+                "thought": "Yerel model güven eşiği altında kaldı ve Gemini API devre dışı. Fallback mesajı verildi.",
                 "action": "none"
             }
             
         except Exception as e:
             return {
                 "response": f"Üzgünüm efendim, yerel düşünme modülümde bir hata oluştu: {str(e)}",
+                "thought": "Sistem hata durumuna geçti.",
                 "action": "none"
             }
             
     def clear_history(self):
-        """Yerel beyinde sohbet geçmişine gerek yoktur."""
-        pass
+        """Sohbet geçmişini temizler."""
+        self.chat_history = []
+        print("[Sistem] Sohbet geçmişi temizlendi.")
