@@ -134,6 +134,15 @@ def chat():
             
     return jsonify(result)
 
+@app.route("/api/pc/poll", methods=["GET"])
+def pc_poll():
+    if not brain:
+        return jsonify({"commands": []}), 500
+    # Sıradaki komutları çek ve kuyruğu temizle
+    commands = list(brain.pc_commands)
+    brain.pc_commands.clear()
+    return jsonify({"commands": commands})
+
 @app.route("/api/clear", methods=["POST"])
 def clear():
     if not brain:
