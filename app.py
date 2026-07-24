@@ -102,6 +102,7 @@ def chat():
         
     data = request.get_json() or {}
     user_message = data.get("message", "").strip()
+    user_profile = data.get("profile", {"facts": []})
     
     if not user_message:
         return jsonify({
@@ -110,7 +111,7 @@ def chat():
         }), 400
         
     # Yapay zekadan yanıt al
-    result = brain.get_response_structured(user_message)
+    result = brain.get_response_structured(user_message, user_profile)
     response_text = result.get("response", "")
     
     # Yapay zeka sesini sunucu tarafında oluştur
